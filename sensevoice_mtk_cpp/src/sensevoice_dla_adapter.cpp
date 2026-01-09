@@ -197,15 +197,22 @@ int init_sensevoice_model(const char *model_path, sensevoice_dla_context_t *app_
     }
 
     // 6. 查询输入输出大小
-    size_t input_size = 0;
+    size_t input0_size = 0;
+    size_t input1_size = 0;
     size_t output_size = 0;
 
-    ret = fnNeuronRuntime_getInputPaddedSize(runtime, 0, &input_size);
+    ret = fnNeuronRuntime_getInputPaddedSize(runtime, 0, &input0_size);
     if (ret == NEURON_NO_ERROR) {
-        app_ctx->input_size = input_size;
-        printf("Input tensor size: %zu bytes\n", input_size);
+        printf("Input[0] (features) size: %zu bytes\n", input0_size);
     } else {
-        fprintf(stderr, "Warning: Failed to get input size\n");
+        fprintf(stderr, "Warning: Failed to get input[0] size\n");
+    }
+
+    ret = fnNeuronRuntime_getInputPaddedSize(runtime, 1, &input1_size);
+    if (ret == NEURON_NO_ERROR) {
+        printf("Input[1] (prompt) size: %zu bytes\n", input1_size);
+    } else {
+        fprintf(stderr, "Warning: Failed to get input[1] size\n");
     }
 
     ret = fnNeuronRuntime_getOutputPaddedSize(runtime, 0, &output_size);
@@ -217,7 +224,7 @@ int init_sensevoice_model(const char *model_path, sensevoice_dla_context_t *app_
     }
 
     app_ctx->runtime = runtime;
-    app_ctx->n_input = 1;   // SenseVoice 只有一个输入(特征)
+    app_ctx->n_input = 2;   // SenseVoice 有两个输入(特征 + prompt)
     app_ctx->n_output = 1;  // 一个输出(logits)
 
     printf("✅ SenseVoice model initialized successfully\n");
@@ -262,17 +269,27 @@ int inference_sensevoice_model(
     printf("Language ID: %d\n", language);
     printf("Text norm: %d\n", text_norm);
 
-    // 准备输入张量
-    // SenseVoice 输入: (1, num_frames, 560) 其中 560 = 80 * 7 (LFR)
-    // 注意: 这里假设输入已经过 LFR 处理
-    size_t input_bytes = num_frames * 560 * sizeof(float);
-
     BufferAttribute attr = {-1};  // 非 ION 缓冲区
 
-    // 设置输入
-    ret = fnNeuronRuntime_setInput(app_ctx->runtime, 0, features, input_bytes, attr);
+    // 准备输入1: 特征张量
+    // SenseVoice 输入: (1, num_frames, 560) 其中 560 = 80 * 7 (LFR)
+    size_t input1_bytes = num_frames * 560 * sizeof(float);
+    printf("Setting input 0: features (%zu bytes)\n", input1_bytes);
+
+    ret = fnNeuronRuntime_setInput(app_ctx->runtime, 0, features, input1_bytes, attr);
     if (ret != NEURON_NO_ERROR) {
-        fprintf(stderr, "❌ setInput failed: %d\n", ret);
+        fprintf(stderr, "❌ setInput[0] (features) failed: %d\n", ret);
+        return -1;
+    }
+
+    // 准备输入2: Prompt 张量 [language, event1, event2, text_norm]
+    int prompt[4] = {language, 1, 2, text_norm};  // event1=1 (HAPPY), event2=2 (Speech)
+    size_t input2_bytes = 4 * sizeof(int);
+    printf("Setting input 1: prompt [%d, %d, %d, %d]\n", prompt[0], prompt[1], prompt[2], prompt[3]);
+
+    ret = fnNeuronRuntime_setInput(app_ctx->runtime, 1, prompt, input2_bytes, attr);
+    if (ret != NEURON_NO_ERROR) {
+        fprintf(stderr, "❌ setInput[1] (prompt) failed: %d\n", ret);
         return -1;
     }
 
