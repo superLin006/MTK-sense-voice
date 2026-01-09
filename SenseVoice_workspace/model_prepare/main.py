@@ -13,7 +13,6 @@ import sys
 # Import our custom modules
 from torch_model import SenseVoiceSmall
 from model_utils import create_sensevoice_model, save_torchscript
-from feature_extractor import extract_sensevoice_features, create_prompt
 
 # Try to import FunASR (for baseline comparison only)
 try:
@@ -29,6 +28,32 @@ try:
 except ImportError:
     print("Warning: mtk_converter not available")
     MTK_CONVERTER_AVAILABLE = False
+
+
+def create_prompt(language="en", text_norm="woitn", event1=1, event2=2):
+    """
+    创建 prompt 张量
+
+    Args:
+        language: 语言代码 (auto, zh, en, yue, ja, ko, nospeech)
+        text_norm: 文本规范化模式 (withitn, woitn)
+        event1: 事件类型 1 (HAPPY=1, SAD=2, ANGRY=3, NEUTRAL=4)
+        event2: 事件类型 2 (Speech=2, Music=3, Applause=4)
+
+    Returns:
+        prompt: torch.Tensor [4] - [language_id, event1, event2, text_norm_id]
+    """
+    lid_dict = {
+        "auto": 0, "zh": 3, "en": 4, "yue": 7,
+        "ja": 11, "ko": 12, "nospeech": 13
+    }
+    textnorm_dict = {"withitn": 14, "woitn": 15}
+
+    language_id = lid_dict.get(language, 4)
+    text_norm_id = textnorm_dict.get(text_norm, 15)
+
+    prompt = torch.tensor([language_id, event1, event2, text_norm_id], dtype=torch.int32)
+    return prompt
 
 
 def parse_args():
@@ -146,51 +171,22 @@ def inference_pytorch_custom(model, audio_path, language="en", text_norm="woitn"
     """
     Run PyTorch inference with our custom model
 
-    Args:
-        model: SenseVoiceSmall model
-        audio_path: Path to audio file
-        language: Language code
-        text_norm: Text normalization mode
+    注意: 此功能已移至 test_converted_models.py
+    test_converted_models.py 使用 FunASR 的特征提取，确保准确性
 
-    Returns:
-        logits: Model output [1, T+4, 25055]
-        features: Input features [1, T, 560]
-        prompt: Input prompt [4]
+    这里只显示提示信息
     """
-    if not os.path.exists('output'):
-        os.mkdir('output')
-
     print("\n" + "="*80)
-    print("PYTORCH INFERENCE (Custom Model)")
+    print("PYTORCH INFERENCE")
+    print("="*80)
+    print("\n⚠️  注意: PYTORCH 模式的推理已移至 test_converted_models.py")
+    print("test_converted_models.py 使用 FunASR 提取特征，确保与原始模型一致")
+    print(f"\n请运行:")
+    print(f"  python3 test_converted_models.py --audio {audio_path} --language {language}")
     print("="*80 + "\n")
 
-    # Extract features
-    features, num_frames = extract_sensevoice_features(audio_path)
-    print(f"Features shape: {features.shape} ({num_frames} frames)")
-
-    # Create prompt
-    prompt = create_prompt(language=language, text_norm=text_norm)
-
-    # Run inference
-    model.eval()
-    with torch.no_grad():
-        logits = model(features, prompt)
-
-    print(f"Output logits shape: {logits.shape}")
-    print(f"Expected shape: [1, {num_frames + 4}, 25055]")
-
-    # Save outputs
-    output_dir = "output"
-    np.save(os.path.join(output_dir, "pytorch_logits.npy"), logits.cpu().numpy())
-    np.save(os.path.join(output_dir, "pytorch_features.npy"), features.cpu().numpy())
-    np.save(os.path.join(output_dir, "pytorch_prompt.npy"), prompt.cpu().numpy())
-
-    print(f"\n✅ Saved outputs to {output_dir}/")
-    print("  - pytorch_logits.npy")
-    print("  - pytorch_features.npy")
-    print("  - pytorch_prompt.npy")
-
-    return logits, features, prompt
+    # 不执行实际的推理，返回 None
+    return None, None, None
 
 
 def inference_pytorch_funasr(audio_path):
