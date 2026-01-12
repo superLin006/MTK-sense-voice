@@ -72,16 +72,42 @@ cd sensevoice_mtk_cpp
 
 #### 1. 环境准备
 
+**Python 环境**:
+
 ```bash
 # 创建 Python 环境
 conda create -n MTK-sensevoice python=3.10
 conda activate MTK-sensevoice
 
-# 安装依赖
+# 安装 Python 依赖
 cd SenseVoice_workspace/model_prepare
 pip install torch torchvision torchaudio
 pip install funasr modelscope
 pip install librosa
+```
+
+**MTK NeuroPilot SDK** (必需):
+
+```bash
+# 下载地址 (需要 MTK 账号)
+# https://vendor.mediatek.com/
+
+# 推荐版本: neuropilot-sdk-basic-8.0.10 或更高
+# 安装路径示例
+export NEUROPILOT_SDK="/home/xh/projects/MTK/0_Toolkits/neuropilot-sdk-basic-8.0.10-build20251029/neuron_sdk"
+
+# 验证安装
+ls "$NEUROPILOT_SDK/host/bin/ncc-tflite"
+```
+
+**Android NDK** (必需):
+
+```bash
+# 下载 Android NDK r25c
+# https://developer.android.com/ndk/downloads
+
+# 设置环境变量 (可选，build.sh 会自动查找)
+export ANDROID_NDK="/home/xh/Android/Ndk/android-ndk-r25c"
 ```
 
 #### 2. 下载模型
@@ -113,11 +139,14 @@ python3 test_converted_models.py --audio ../audios/test_en.wav
 ```bash
 cd SenseVoice_workspace/compile
 
+# 设置 SDK 路径 (如果之前没有设置环境变量)
+NEUROPILOT_SDK="/home/xh/projects/MTK/0_Toolkits/neuropilot-sdk-basic-8.0.10-build20251029/neuron_sdk"
+
 # 选择目标平台: MT6899 / MT6991 / MT8371
 ./compile_sensevoice_fp.sh \
     ../model_prepare/model/sensevoice_complete.tflite \
     MT8371 \
-    /path/to/neuropilot-sdk/neuron_sdk
+    "$NEUROPILOT_SDK"
 ```
 
 #### 5. 构建 C++ 推理程序
@@ -247,6 +276,23 @@ A: 检查是否启用了 APU 电源管理，确保 NPU 频率正常。
 
 **Q: 不同平台可以通用 DLA 文件吗？**
 A: 不可以，每个平台需要单独编译。
+
+**Q: 编译 DLA 时提示 `ncc-tflite: command not found` 怎么办？**
+A: 需要设置正确的 NeuroPilot SDK 路径：
+
+```bash
+# 1. 确认 SDK 已安装
+ls /home/xh/projects/MTK/0_Toolkits/neuropilot-sdk-basic-8.0.10-build20251029/neuron_sdk/host/bin/ncc-tflite
+
+# 2. 编译时传入正确的 SDK 路径
+./compile_sensevoice_fp.sh \
+    ../model_prepare/model/sensevoice_complete.tflite \
+    MT8371 \
+    /home/xh/projects/MTK/0_Toolkits/neuropilot-sdk-basic-8.0.10-build20251029/neuron_sdk
+```
+
+**Q: 如何获取 NeuroPilot SDK？**
+A: 需要访问 MediaTek 官方网站 (https://vendor.mediatek.com/) 并注册账号，下载对应版本的 SDK。推荐使用 `neuropilot-sdk-basic-8.0.10` 或更高版本。
 
 ---
 

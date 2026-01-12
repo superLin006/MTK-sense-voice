@@ -82,6 +82,18 @@ python3 test_converted_models.py \
 
 ### 4. 编译 DLA
 
+**⚠️ 重要**: 需要先安装 MTK NeuroPilot SDK
+
+```bash
+# MTK NeuroPilot SDK 下载地址 (需要 MTK 账号)
+# https://vendor.mediatek.com/
+
+# SDK 安装路径示例
+NEUROPILOT_SDK="/home/xh/projects/MTK/0_Toolkits/neuropilot-sdk-basic-8.0.10-build20251029/neuron_sdk"
+```
+
+编译 DLA 模型:
+
 ```bash
 cd ../compile
 
@@ -89,8 +101,17 @@ cd ../compile
 ./compile_sensevoice_fp.sh \
     ../model_prepare/model/sensevoice_complete.tflite \
     MT8371 \
-    /path/to/neuropilot-sdk/neuron_sdk
+    "$NEUROPILOT_SDK"
 ```
+
+**编译参数说明**:
+- `--arch`: MDLA 架构 (自动根据平台选择)
+- `--l1-size-kb`: L1 缓存大小 (自动根据平台设置)
+- `--num-mdla`: MDLA 核心数 (自动根据平台设置)
+- `--relax-fp32`: FP32 放宽优化
+- `--opt-accuracy`: 准确性优化
+- `--opt-footprint`: 减少内存占用
+- `--fc-to-conv`: 全连接转卷积 (提升 NPU 效率)
 
 ---
 
@@ -222,6 +243,23 @@ A: librosa 与 kaldi-native-fbank 有实现差异，FunASR 使用后者，用其
 
 **Q: 不同平台需要分别编译吗？**
 A: 是的，每个平台的 MDLA 架构和缓存大小不同，需要单独编译优化。
+
+**Q: 编译 DLA 时提示 `ncc-tflite: command not found` 怎么办？**
+A: 需要设置正确的 NeuroPilot SDK 路径：
+
+```bash
+# 1. 确认 SDK 已安装
+ls /home/xh/projects/MTK/0_Toolkits/neuropilot-sdk-basic-8.0.10-build20251029/neuron_sdk/host/bin/ncc-tflite
+
+# 2. 编译时传入正确的 SDK 路径
+./compile_sensevoice_fp.sh \
+    ../model_prepare/model/sensevoice_complete.tflite \
+    MT8371 \
+    /home/xh/projects/MTK/0_Toolkits/neuropilot-sdk-basic-8.0.10-build20251029/neuron_sdk
+```
+
+**Q: 如何获取 NeuroPilot SDK？**
+A: 需要访问 MediaTek 官方网站 (https://vendor.mediatek.com/) 并注册账号，下载对应版本的 SDK。推荐使用 `neuropilot-sdk-basic-8.0.10` 或更高版本。
 
 ---
 
