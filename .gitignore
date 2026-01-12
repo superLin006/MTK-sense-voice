@@ -65,6 +65,8 @@ audios/*.wav
 *.exe
 install/
 sensevoice_mtk_cpp/install/
+sensevoice_mtk_cpp/obj/
+sensevoice_mtk_cpp/libs/
 
 # CMake
 CMakeCache.txt

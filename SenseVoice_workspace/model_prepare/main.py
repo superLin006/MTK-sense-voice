@@ -138,14 +138,17 @@ def extract_encoder_only(full_model):
         return full_model
 
 
-def save_model_complete(model, audio_features, prompt, model_name="sensevoice_complete"):
+def save_model_complete(model, audio_features, language_id, event_id, event_type_id, text_norm_id, model_name="sensevoice_complete"):
     """
     Save complete SenseVoice model as TorchScript
 
     Args:
         model: Complete SenseVoice model (CMVN + Encoder + CTC)
         audio_features: Sample audio features [1, T, 560]
-        prompt: Sample prompt [4]
+        language_id: Language ID scalar
+        event_id: Event ID scalar
+        event_type_id: Event type ID scalar
+        text_norm_id: Text normalization ID scalar
         model_name: Output model name
     """
     if not os.path.exists('model'):
@@ -158,9 +161,9 @@ def save_model_complete(model, audio_features, prompt, model_name="sensevoice_co
         model = model.cpu()
         model.eval()
 
-        # Trace with sample inputs
+        # Trace with sample inputs (5 inputs instead of 2)
         with torch.no_grad():
-            save_torchscript(model, model_file, (audio_features, prompt))
+            save_torchscript(model, model_file, (audio_features, language_id, event_id, event_type_id, text_norm_id))
     else:
         print(f"{model_file} already exists.")
 
@@ -294,22 +297,28 @@ def main(args):
         print("Using FIXED input shape for 10-second audio...")
         fixed_frames = 166  # 10s audio: (16000*10 - 400)/160 + 1 = 998 fbank frames -> (998-7)/6+1 = 166 LFR frames
         features = torch.randn(1, fixed_frames, 560)  # Dummy features for tracing
+
+        # Create prompt parameters (4 separate scalar inputs)
         prompt = create_prompt(language=args.language, text_norm=args.text_norm)
+        language_id, event_id, event_type_id, text_norm_id = prompt
 
         print(f"\nModel inputs (FIXED for 10s audio):")
         print(f"  - Features: {features.shape} [1, 166, 560]")
-        print(f"  - Prompt: {prompt.shape}")
+        print(f"  - Language ID: {language_id}")
+        print(f"  - Event ID: {event_id}")
+        print(f"  - Event Type ID: {event_type_id}")
+        print(f"  - Text Norm ID: {text_norm_id}")
 
         # Test forward pass
         print("\nTesting forward pass...")
         model.eval()
         with torch.no_grad():
-            logits = model(features, prompt)
+            logits = model(features, language_id, event_id, event_type_id, text_norm_id)
         print(f"Output shape: {logits.shape} (expected: [1, 170, 25055])")
 
         # Save to TorchScript
         print("\nSaving model to TorchScript...")
-        model_file = save_model_complete(model, features, prompt, "sensevoice_complete")
+        model_file = save_model_complete(model, features, language_id, event_id, event_type_id, text_norm_id, "sensevoice_complete")
         print(f"✅ Model saved to: {model_file}")
         print(f"\n📌 Note: Model is traced with FIXED shape [1, 166, 560] for 10-second audio")
 

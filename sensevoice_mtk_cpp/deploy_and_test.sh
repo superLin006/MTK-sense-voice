@@ -1,103 +1,101 @@
 #!/bin/bash
-
-# SenseVoice Android 测试脚本
-# 构建、推送到设备并运行测试
+#
+# Deploy and test SenseVoice on Android device
+#
 
 set -e
 
-# 颜色输出
-RED='\033[0;31m'
-GREEN='\033[0;32m'
-YELLOW='\033[1;33m'
-BLUE='\033[0;34m'
-NC='\033[0m'
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+cd "$SCRIPT_DIR"
 
-PROJECT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-OUTPUT_DIR="$PROJECT_DIR/install/android/arm64-v8a"
-AUDIO_TEST_BIN="$OUTPUT_DIR/bin/sensevoice_audio_test"
-DEVICE_PATH="/data/local/tmp/sensevoice_test"
+DEVICE_DIR="/data/local/tmp/sensevoice"
+DLA_FILE="$SCRIPT_DIR/../SenseVoice_workspace/compile/sensevoice_MT8371.dla"
+TOKENS_FILE="$SCRIPT_DIR/../SenseVoice_workspace/models/sensevoice-small/tokens.txt"
+AUDIO_DIR="$SCRIPT_DIR/../SenseVoice_workspace/audios"
 
-echo -e "${BLUE}========================================${NC}"
-echo -e "${BLUE}  SenseVoice Android Test Script${NC}"
-echo -e "${BLUE}========================================${NC}"
-echo ""
+echo "==================================="
+echo "Deploying SenseVoice to device"
+echo "==================================="
 
-# 检查是否连接了设备
-echo "Checking for connected Android devices..."
-DEVICES=$(adb devices | grep -v "List" | grep "device" | wc -l)
-if [ "$DEVICES" -eq 0 ]; then
-    echo -e "${RED}❌ No Android device found${NC}"
-    echo "Please connect an Android device and enable USB debugging"
-    exit 1
-fi
-echo -e "${GREEN}✓ Found $DEVICES device(s)${NC}"
-echo ""
+# Create device directory
+adb shell "mkdir -p $DEVICE_DIR"
 
-# 构建
-echo -e "${YELLOW}Step 1: Building for Android...${NC}"
-./build_android.sh
-if [ $? -ne 0 ]; then
-    echo -e "${RED}❌ Build failed${NC}"
-    exit 1
-fi
-echo -e "${GREEN}✓ Build completed${NC}"
-echo ""
+# Push executable
+echo "Pushing executable..."
+adb push libs/arm64-v8a/sensevoice_main $DEVICE_DIR/
+adb shell "chmod +x $DEVICE_DIR/sensevoice_main"
 
-# 准备测试音频（使用项目中的测试音频）
-TEST_AUDIO="/home/xh/projects/MTK/sense-voice/SenseVoice_workspace/audios/test_en.wav"
-if [ ! -f "$TEST_AUDIO" ]; then
-    echo -e "${RED}❌ Test audio not found: $TEST_AUDIO${NC}"
-    exit 1
+# Push C++ shared library
+echo "Pushing libc++_shared.so..."
+NDK_STL_LIB=$(find /home/xh/Android/Sdk/ndk -name "libc++_shared.so" -path "*arm64-v8a*" | head -1)
+if [ -n "$NDK_STL_LIB" ]; then
+    adb push "$NDK_STL_LIB" $DEVICE_DIR/
 fi
 
-# 推送文件到设备
-echo -e "${YELLOW}Step 2: Pushing files to device...${NC}"
-
-# 创建设备上的目录
-adb shell "mkdir -p $DEVICE_PATH"
-
-# 推送 C++ 运行时库
-echo "  Pushing libc++_shared.so..."
-adb push "$OUTPUT_DIR/bin/libc++_shared.so" "$DEVICE_PATH/" > /dev/null
-
-# 推送可执行文件
-echo "  Pushing binary..."
-adb push "$AUDIO_TEST_BIN" "$DEVICE_PATH/sensevoice_audio_test" > /dev/null
-adb shell "chmod 755 $DEVICE_PATH/sensevoice_audio_test"
-
-# 推送测试音频
-echo "  Pushing test audio..."
-adb push "$TEST_AUDIO" "$DEVICE_PATH/test_en.wav" > /dev/null
-
-echo -e "${GREEN}✓ Files pushed successfully${NC}"
-echo ""
-
-# 运行测试
-echo -e "${YELLOW}Step 3: Running audio processing test...${NC}"
-echo ""
-echo -e "${BLUE}========================================${NC}"
-
-adb shell "cd $DEVICE_PATH && LD_LIBRARY_PATH=. ./sensevoice_audio_test test_en.wav"
-
-echo ""
-echo -e "${BLUE}========================================${NC}"
-echo ""
-
-# 检查退出代码
-EXIT_CODE=$(adb shell "echo \$?")
-if [ "$EXIT_CODE" == "0" ]; then
-    echo -e "${GREEN}✓ Test completed successfully!${NC}"
-    echo ""
-    echo "Audio processing is working correctly on Android device!"
+# Push model files
+echo "Pushing model files..."
+if [ -f "$DLA_FILE" ]; then
+    adb push "$DLA_FILE" $DEVICE_DIR/
 else
-    echo -e "${RED}❌ Test failed with exit code: $EXIT_CODE${NC}"
+    echo "Warning: DLA file not found at $DLA_FILE"
+fi
+
+if [ -f "$TOKENS_FILE" ]; then
+    adb push "$TOKENS_FILE" $DEVICE_DIR/
+else
+    echo "Warning: Tokens file not found at $TOKENS_FILE"
+fi
+
+# List deployed files
+echo ""
+echo "Deployed files:"
+adb shell "ls -la $DEVICE_DIR/"
+
+echo ""
+echo "==================================="
+echo "Deployment completed!"
+echo "==================================="
+echo ""
+
+# Test function
+run_test() {
+    local audio_file=$1
+    local audio_name=$(basename "$audio_file")
+
     echo ""
-    echo "Check the output above for errors"
+    echo "-----------------------------------"
+    echo "Testing: $audio_name"
+    echo "-----------------------------------"
+
+    # Push audio file
+    adb push "$audio_file" $DEVICE_DIR/
+
+    # Run inference
+    adb shell "cd $DEVICE_DIR && export LD_LIBRARY_PATH=\$LD_LIBRARY_PATH:$DEVICE_DIR && ./sensevoice_main sensevoice_MT8371.dla tokens.txt $audio_name"
+}
+
+# Run tests if audio files exist
+if [ "$1" == "--test" ]; then
+    shift
+    if [ -n "$1" ]; then
+        # Test specific file(s)
+        for audio_file in "$@"; do
+            if [ -f "$audio_file" ]; then
+                run_test "$audio_file"
+            else
+                echo "Warning: Audio file not found: $audio_file"
+            fi
+        done
+    else
+        # Test default files
+        for audio_file in "$AUDIO_DIR/test_zh.wav" "$AUDIO_DIR/audio4.wav"; do
+            if [ -f "$audio_file" ]; then
+                run_test "$audio_file"
+            fi
+        done
+    fi
 fi
 
 echo ""
-echo "To run manually on device:"
-echo "  adb shell"
-echo "  cd $DEVICE_PATH"
-echo "  ./sensevoice_audio_test test_en.wav"
-echo ""
+echo "To run a test manually:"
+echo "  adb shell \"cd $DEVICE_DIR && export LD_LIBRARY_PATH=\\\$LD_LIBRARY_PATH:$DEVICE_DIR && ./sensevoice_main sensevoice_MT8371.dla tokens.txt <audio.wav>\""

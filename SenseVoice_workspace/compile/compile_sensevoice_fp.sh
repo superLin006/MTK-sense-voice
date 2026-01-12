@@ -31,24 +31,29 @@ case ${PLATFORM} in
     "MT6899")
         ARCH="mdla5.5"
         L1_SIZE="2048"
+        NUM_MDLA="2"
         ;;
     "MT6991")
         ARCH="mdla5.5"
         L1_SIZE="7168"
+        NUM_MDLA="4"
         ;;
     "MT8371")
         ARCH="mdla5.3,edma3.6"
         L1_SIZE="256"
+        NUM_MDLA="1"
         ;;
     *)
         echo "Warning: Unknown platform ${PLATFORM}, using default settings"
         ARCH="mdla5.5"
         L1_SIZE="2048"
+        NUM_MDLA="2"
         ;;
 esac
 
 echo "Architecture: ${ARCH}"
 echo "L1 Cache Size: ${L1_SIZE}KB"
+echo "NUM MDLA: ${NUM_MDLA}"
 echo ""
 
 # Output file
@@ -56,11 +61,15 @@ OUTPUT_FILE="sensevoice_${PLATFORM}.dla"
 
 # Compile command
 ncc-tflite \
-    --arch=${ARCH},mvpu2.5 \
+    --arch=${ARCH} \
     -O3 \
+    --l1-size-kb=${L1_SIZE} \
+    --num-mdla=${NUM_MDLA} \
+    --show-memory-summary \
     --relax-fp32 \
     --opt-accuracy \
-    --l1-size=${L1_SIZE} \
+    --opt-footprint \
+    --fc-to-conv \
     -d ${OUTPUT_FILE} \
     ${TFLITE_PATH} \
     2>&1 | tee compile_sensevoice_${PLATFORM}.log

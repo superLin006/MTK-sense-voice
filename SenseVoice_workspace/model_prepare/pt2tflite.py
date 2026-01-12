@@ -21,8 +21,8 @@ def main():
                         help='Output TFLite/MLIR file path')
     parser.add_argument('--float', type=int, default=1,
                         help='Use float32 (1) or quantize (0). Default: 1')
-    parser.add_argument('--input_shapes', type=str, default="[[1,166,560],[4]]",
-                        help='Input shapes as string. Default: [[1,166,560],[4]] for 10s audio')
+    parser.add_argument('--input_shapes', type=str, default="[[1,166,560],[1],[1],[1],[1]]",
+                        help='Input shapes as string. Default: [[1,166,560],[1],[1],[1],[1]] for 10s audio with 4 scalar prompt inputs')
     args = parser.parse_args()
 
     print(f"\n{'='*80}")
@@ -54,7 +54,7 @@ def main():
         converter = mtk_converter.PyTorchConverter.from_script_module_file(
             args.input,
             input_shapes=input_shapes,
-            input_types=[torch.float32, torch.int32],  # Features: float32, Prompt: int32
+            input_types=[torch.float32, torch.int32, torch.int32, torch.int32, torch.int32],  # 5 inputs: features + 4 prompt scalars
         )
 
         # Set quantization mode
@@ -86,7 +86,7 @@ def main():
         # Print model info
         print(f"\nModel Information:")
         print(f"  Input shapes: {input_shapes}")
-        print(f"  Input types: [float32, int32]")
+        print(f"  Input types: [float32, int32, int32, int32, int32]")
         print(f"  Output: CTC logits [1, T+4, 25055]")
 
     except Exception as e:

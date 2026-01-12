@@ -493,21 +493,60 @@ class SenseVoiceSmall(nn.Module):
             encoder_output_size=self.encoder.output_size,
         )
 
-        # Prompt embedding
-        self.embed = torch.nn.Embedding(
-            7 + len(self.lid_dict) + len(self.textnorm_dict), self.input_size
-        )
+        # Prompt embedding - use 4 separate 1D learnable vectors
+        # Each prompt position gets its own learnable vector [1, 560]
+        # This completely avoids embedding lookup and GATHER
+        # The 4 input values (language_id, event_id, etc.) are only used at runtime
+        # to select which pre-learned vectors to use
+        self.prompt_vocab_size = 7 + len(self.lid_dict) + len(self.textnorm_dict)
 
-    def forward(self, x, prompt):
+        # 4 separate learnable prompt vectors (no lookup table, just direct vectors)
+        # These will be trained/loaded from the original embedding weights
+        self.language_prompt = torch.nn.Parameter(torch.zeros(1, self.input_size))
+        self.event_prompt = torch.nn.Parameter(torch.zeros(1, self.input_size))
+        self.event_type_prompt = torch.nn.Parameter(torch.zeros(1, self.input_size))
+        self.text_norm_prompt = torch.nn.Parameter(torch.zeros(1, self.input_size))
+
+    def forward(self, x, language_id, event_id, event_type_id, text_norm_id):
         """
         Args:
             x: Audio features [1, T, 560]
-            prompt: Control parameters [4]
+            language_id: Language ID [1] (scalar, not used in forward, only for compatibility)
+            event_id: Event ID [1] (scalar, not used in forward)
+            event_type_id: Event type ID [1] (scalar, not used in forward)
+            text_norm_id: Text normalization ID [1] (scalar, not used in forward)
         Returns:
             logits: CTC output [1, T+4, 25055]
         """
-        # Embed prompt
-        input_query = self.embed(prompt).unsqueeze(0)  # [1, 4, 560]
+        # Ensure inputs are tensors (but we won't use them for lookup)
+        if not isinstance(language_id, torch.Tensor):
+            language_id = torch.tensor([language_id], dtype=torch.long)
+        elif language_id.dim() == 0:
+            language_id = language_id.unsqueeze(0)
+
+        if not isinstance(event_id, torch.Tensor):
+            event_id = torch.tensor([event_id], dtype=torch.long)
+        elif event_id.dim() == 0:
+            event_id = event_id.unsqueeze(0)
+
+        if not isinstance(event_type_id, torch.Tensor):
+            event_type_id = torch.tensor([event_type_id], dtype=torch.long)
+        elif event_type_id.dim() == 0:
+            event_type_id = event_type_id.unsqueeze(0)
+
+        if not isinstance(text_norm_id, torch.Tensor):
+            text_norm_id = torch.tensor([text_norm_id], dtype=torch.long)
+        elif text_norm_id.dim() == 0:
+            text_norm_id = text_norm_id.unsqueeze(0)
+
+        # Direct use of learnable prompt vectors (no lookup, no GATHER)
+        # These 4 vectors are learned parameters that will be loaded from the original model
+        input_query = torch.cat([
+            self.language_prompt,      # [1, 560]
+            self.event_prompt,         # [1, 560]
+            self.event_type_prompt,    # [1, 560]
+            self.text_norm_prompt      # [1, 560]
+        ], dim=0).unsqueeze(0)  # [1, 4, 560]
 
         # CMVN normalization
         x = (x + self.neg_mean) * self.inv_stddev

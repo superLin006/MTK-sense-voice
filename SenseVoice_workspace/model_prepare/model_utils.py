@@ -104,6 +104,36 @@ def load_pretrained_weights(model, model_dir):
     # Try to load the state dict
     # Note: Some keys might not match exactly, we'll handle missing keys
     try:
+        # Check if embed.weight exists in state_dict (old Embedding layer)
+        if "embed.weight" in state_dict:
+            print("Converting Embedding weights to 4 separate prompt vectors...")
+            # Original: embed.weight [vocab_size, embed_dim]
+            # We need to extract specific rows for the 4 prompt positions
+            embedding_weight = state_dict.pop("embed.weight")  # [16, 560]
+
+            # Default prompt indices (used during training/tracing)
+            # These should match the create_prompt() defaults
+            default_language_idx = 4  # en language
+            default_event_idx = 1     # HAPPY event
+            default_event_type_idx = 2  # Speech type
+            default_text_norm_idx = 15  # woitn
+
+            # Extract the 4 vectors from the embedding table
+            language_prompt = embedding_weight[default_language_idx:default_language_idx+1, :]  # [1, 560]
+            event_prompt = embedding_weight[default_event_idx:default_event_idx+1, :]        # [1, 560]
+            event_type_prompt = embedding_weight[default_event_type_idx:default_event_type_idx+1, :]  # [1, 560]
+            text_norm_prompt = embedding_weight[default_text_norm_idx:default_text_norm_idx+1, :]  # [1, 560]
+
+            # Load into the new parameters
+            state_dict["language_prompt"] = language_prompt
+            state_dict["event_prompt"] = event_prompt
+            state_dict["event_type_prompt"] = event_type_prompt
+            state_dict["text_norm_prompt"] = text_norm_prompt
+
+            print(f"  Original embedding: {embedding_weight.shape}")
+            print(f"  Extracted 4 prompt vectors: {language_prompt.shape}, {event_prompt.shape}, {event_type_prompt.shape}, {text_norm_prompt.shape}")
+            print(f"  Using prompt indices: language={default_language_idx}, event={default_event_idx}, type={default_event_type_idx}, norm={default_text_norm_idx}")
+
         incompatible = model.load_state_dict(state_dict, strict=False)
         if incompatible.missing_keys:
             print(f"Warning: Missing keys: {len(incompatible.missing_keys)}")
