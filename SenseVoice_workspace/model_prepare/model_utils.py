@@ -113,10 +113,10 @@ def load_pretrained_weights(model, model_dir):
 
             # Default prompt indices (used during training/tracing)
             # These should match the create_prompt() defaults
-            default_language_idx = 4  # en language
-            default_event_idx = 1     # HAPPY event
-            default_event_type_idx = 2  # Speech type
-            default_text_norm_idx = 15  # woitn
+            default_language_idx = 0   # auto language (自动检测语言)
+            default_event_idx = 1      # HAPPY event
+            default_event_type_idx = 2 # Speech type
+            default_text_norm_idx = 14 # withitn (启用标点符号)
 
             # Extract the 4 vectors from the embedding table
             language_prompt = embedding_weight[default_language_idx:default_language_idx+1, :]  # [1, 560]

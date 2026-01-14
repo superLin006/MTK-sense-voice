@@ -169,8 +169,14 @@ def test_pytorch_model(features, prompt, model_path, vocab_file):
     # Reverse CMVN to get original features
     features_original = features / model.inv_stddev - model.neg_mean
 
+    # Call model with separate arguments (not packed prompt)
     with torch.no_grad():
-        logits = model(features_original, prompt)
+        # Unpack prompt: [language_id, event_id, event_type_id, text_norm_id]
+        language_id = int(prompt[0].item())
+        event_id = int(prompt[1].item())
+        event_type_id = int(prompt[2].item())
+        text_norm_id = int(prompt[3].item())
+        logits = model(features_original, language_id, event_id, event_type_id, text_norm_id)
 
     result = decode_sensevoice_logits(logits.cpu().numpy(), vocab_file)
 
@@ -196,8 +202,13 @@ def test_torchscript_model(features, prompt, pt_file, vocab_file, pytorch_logits
     temp_model = create_sensevoice_model("../models/sensevoice-small")
     features_original = features / temp_model.inv_stddev - temp_model.neg_mean
 
+    # Call TorchScript model with separate arguments (as tensors)
     with torch.no_grad():
-        ts_logits = ts_model(features_original, prompt)
+        language_id = prompt[0:1]  # Keep as tensor
+        event_id = prompt[1:2]
+        event_type_id = prompt[2:3]
+        text_norm_id = prompt[3:4]
+        ts_logits = ts_model(features_original, language_id, event_id, event_type_id, text_norm_id)
 
     result = decode_sensevoice_logits(ts_logits.cpu().numpy(), vocab_file)
 
@@ -255,16 +266,23 @@ def test_tflite_model(features, prompt, tflite_file, vocab_file, pytorch_logits)
     else:
         print(f"   ✅ Features match fixed length: {fixed_length} frames")
 
-    # Prepare inputs
+    # Prepare inputs - TFLite expects 5 separate inputs
     features_np = features_original.cpu().numpy().astype(np.float32)
-    prompt_np = prompt.cpu().numpy().astype(np.int32)
+    # Unpack prompt: [language_id, event_id, event_type_id, text_norm_id]
+    language_np = np.array([prompt[0].item()], dtype=np.int32)
+    event_np = np.array([prompt[1].item()], dtype=np.int32)
+    event_type_np = np.array([prompt[2].item()], dtype=np.int32)
+    text_norm_np = np.array([prompt[3].item()], dtype=np.int32)
 
-    # Run inference
+    # Run inference with 5 inputs
     if hasattr(executor, 'run'):
-        outputs = executor.run([features_np, prompt_np])
+        outputs = executor.run([features_np, language_np, event_np, event_type_np, text_norm_np])
     else:
         executor.set_input(0, features_np)
-        executor.set_input(1, prompt_np)
+        executor.set_input(1, language_np)
+        executor.set_input(2, event_np)
+        executor.set_input(3, event_type_np)
+        executor.set_input(4, text_norm_np)
         executor.invoke()
         outputs = [executor.get_output(0)]
 

@@ -56,7 +56,7 @@ enum class TextNorm {
 // Inference configuration
 struct InferenceConfig {
     Language language = Language::Auto;
-    TextNorm text_norm = TextNorm::WithoutITN;
+    TextNorm text_norm = TextNorm::WithITN;  // Default: with punctuation
     bool use_greedy_search = true;  // Currently only greedy search is supported
 };
 

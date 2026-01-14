@@ -13,10 +13,6 @@ if [ -z "$ANDROID_NDK" ]; then
     # Try common locations
     if [ -d "/home/xh/Android/Ndk/android-ndk-r25c" ]; then
         export ANDROID_NDK="/home/xh/Android/Ndk/android-ndk-r25c"
-    elif [ -d "/home/xh/Android/Sdk/ndk/25.1.8937393" ]; then
-        export ANDROID_NDK="/home/xh/Android/Sdk/ndk/25.1.8937393"
-    elif [ -d "$HOME/Android/Sdk/ndk/25.1.8937393" ]; then
-        export ANDROID_NDK="$HOME/Android/Sdk/ndk/25.1.8937393"
     else
         echo "Error: ANDROID_NDK not set and not found in common locations"
         exit 1

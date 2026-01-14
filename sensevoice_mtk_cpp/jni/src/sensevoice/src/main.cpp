@@ -24,11 +24,11 @@ void PrintUsage(const char* program_name) {
     std::cout << "  tokens.txt   Path to tokens file\n";
     std::cout << "  audio.wav    Path to audio file (WAV or PCM, 16kHz mono)\n";
     std::cout << "  language     Language hint: auto, zh, en, yue, ja, ko (default: auto)\n";
-    std::cout << "  text_norm    Text normalization: with_itn, without_itn (default: without_itn)\n\n";
+    std::cout << "  text_norm    Text normalization: with_itn (punctuation), without_itn (default: with_itn)\n\n";
     std::cout << "Examples:\n";
     std::cout << "  " << program_name << " sensevoice.dla tokens.txt test.wav\n";
     std::cout << "  " << program_name << " sensevoice.dla tokens.txt test.wav zh\n";
-    std::cout << "  " << program_name << " sensevoice.dla tokens.txt test.wav auto with_itn\n";
+    std::cout << "  " << program_name << " sensevoice.dla tokens.txt test.wav auto without_itn\n";
 }
 
 sensevoice::Language ParseLanguage(const std::string& lang_str) {
@@ -65,7 +65,7 @@ int main(int argc, char* argv[]) {
     std::string tokens_path = argv[2];
     std::string audio_path = argv[3];
     std::string language_str = (argc > 4) ? argv[4] : "auto";
-    std::string text_norm_str = (argc > 5) ? argv[5] : "without_itn";
+    std::string text_norm_str = (argc > 5) ? argv[5] : "with_itn";  // Default: enable punctuation
 
     sensevoice::Language language = ParseLanguage(language_str);
     sensevoice::TextNorm text_norm = ParseTextNorm(text_norm_str);
